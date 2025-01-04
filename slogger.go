@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	slogdedup "github.com/veqryn/slog-dedup"
 )
 
 const (
@@ -60,9 +62,9 @@ func NewLogger(loggerOpts *LoggerOpts, handlerOpts ...func(o *slog.HandlerOption
 	}
 
 	if strings.ToLower(loggerOpts.mode) == ModeJSON {
-		return slog.New(slog.NewJSONHandler(loggerOpts.destination, hOpts))
+		return slog.New(slogdedup.NewOverwriteHandler(slog.NewJSONHandler(loggerOpts.destination, hOpts), nil))
 	}
-	return slog.New(slog.NewTextHandler(loggerOpts.destination, hOpts))
+	return slog.New(slogdedup.NewOverwriteHandler(slog.NewTextHandler(loggerOpts.destination, hOpts), nil))
 }
 
 func WithSource() func(o *slog.HandlerOptions) {

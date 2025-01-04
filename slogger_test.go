@@ -2,9 +2,11 @@ package slogger
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"log/slog"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewLoggerOpts(t *testing.T) {
@@ -87,34 +89,59 @@ func TestSubLogger(t *testing.T) {
 }
 
 func TestNewLoggerWithJsonOutput(t *testing.T) {
-	var buf bytes.Buffer
-	opts := NewLoggerOpts("testService", "testApp", WithJsonOutput(), WithDestination(&buf))
-	logger := NewLogger(opts)
-	assert.NotNil(t, logger)
+	t.Run("it should create the logs correctly", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithJsonOutput(), WithDestination(&buf))
+		logger := NewLogger(opts)
+		assert.NotNil(t, logger)
 
-	// Log something
-	logger.Info("test")
+		// Log something
+		logger.Info("test")
 
-	// Check if the logged data is in JSON format
-	data := buf.String()
-	assert.Contains(t, data, "{")
-	assert.Contains(t, data, "}")
-	assert.Contains(t, data, "\"level\":\"INFO\"")
-	assert.Contains(t, data, "\"msg\":\"test\"")
+		// Check if the logged data is in JSON format
+		data := buf.String()
+		assert.Contains(t, data, "{")
+		assert.Contains(t, data, "}")
+		assert.Contains(t, data, "\"level\":\"INFO\"")
+		assert.Contains(t, data, "\"msg\":\"test\"")
+	})
+	t.Run("it should not duplicate keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithJsonOutput(), WithDestination(&buf))
+		logger := NewLogger(opts)
+		assert.NotNil(t, logger)
+		// log the same key twice
+		logger.Info("test", slog.String("key", "value"), slog.String("key", "new-value"))
+		data := buf.String()
+		assert.Equal(t, 1, strings.Count(data, `"key":"new-value"`))
+	})
+
 }
 
 func TestNewLoggerWithHandlerOpts(t *testing.T) {
-	var buf bytes.Buffer
-	opts := NewLoggerOpts("testService", "testApp", WithDestination(&buf))
-	logger := NewLogger(opts, WithSource(), WithLevel("debug"))
+	t.Run("it should create the logs correctly", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithDestination(&buf))
+		logger := NewLogger(opts, WithSource(), WithLevel("debug"))
 
-	assert.NotNil(t, logger)
+		assert.NotNil(t, logger)
 
-	// Log something
-	logger.Debug("test")
+		// Log something
+		logger.Debug("test")
 
-	// Check if the logged data contains the source and level
-	data := buf.String()
-	assert.Contains(t, data, "source")
-	assert.Contains(t, data, "level=DEBUG")
+		// Check if the logged data contains the source and level
+		data := buf.String()
+		assert.Contains(t, data, "source")
+		assert.Contains(t, data, "level=DEBUG")
+	})
+	t.Run("it should not duplicate keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithDestination(&buf))
+		logger := NewLogger(opts)
+		assert.NotNil(t, logger)
+		// log the same key twice
+		logger.Info("test", slog.String("key", "value"), slog.String("key", "new-value"))
+		data := buf.String()
+		assert.Equal(t, 1, strings.Count(data, "key=new-value"))
+	})
 }
