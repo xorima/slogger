@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	slogotel "github.com/remychantenay/slog-otel"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
 )
 
 func TestNewLoggerOpts(t *testing.T) {
@@ -143,5 +145,32 @@ func TestNewLoggerWithHandlerOpts(t *testing.T) {
 		logger.Info("test", slog.String("key", "value"), slog.String("key", "new-value"))
 		data := buf.String()
 		assert.Equal(t, 1, strings.Count(data, "key=new-value"))
+	})
+}
+
+func TestWithOtel(t *testing.T) {
+	t.Run("it should create the logs correctly with otel enabled", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithOtel(), WithDestination(&buf))
+		logger := NewLogger(opts)
+		assert.NotNil(t, logger)
+		ctx, span := otel.GetTracerProvider().Tracer("test").Start(t.Context(), t.Name())
+		defer span.End()
+		logger.InfoContext(ctx, "test")
+		assert.Contains(t, buf.String(), "\"level\":\"INFO\"")
+	})
+}
+
+func TestWithOtelLevel(t *testing.T) {
+	t.Run("it should create the logs correctly with otel enabled", func(t *testing.T) {
+		var buf bytes.Buffer
+		opts := NewLoggerOpts("testService", "testApp", WithOtelOpts(slogotel.WithNoTraceEvents(true)), WithDestination(&buf))
+		logger := NewLogger(opts)
+		assert.NotNil(t, logger)
+		ctx, span := otel.GetTracerProvider().Tracer("test").Start(t.Context(), t.Name())
+		defer span.End()
+		logger.InfoContext(ctx, "test")
+		assert.Contains(t, buf.String(), "\"level\":\"INFO\"")
+
 	})
 }

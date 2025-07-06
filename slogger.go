@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	slogotel "github.com/remychantenay/slog-otel"
 	slogdedup "github.com/veqryn/slog-dedup"
 )
 
@@ -18,6 +19,8 @@ type LoggerOpts struct {
 	addAttr     []slog.Attr
 	destination io.Writer
 	mode        string
+	otelMode    bool
+	otelOpts    []slogotel.OtelHandlerOpt
 }
 
 func NewLoggerOpts(serviceName, applicationName string, opts ...func(o *LoggerOpts)) *LoggerOpts {
@@ -53,6 +56,28 @@ func WithAttr(attr slog.Attr) func(o *LoggerOpts) {
 	}
 }
 
+// WithOtel enables the otel logging system on this logger
+// which uses github.com/remychantenay/slog-otel to add logs
+// to spans and traces
+func WithOtel() func(o *LoggerOpts) {
+	return func(o *LoggerOpts) {
+		o.otelMode = true
+	}
+}
+
+// WithOtelOpts enables the user to setup the opts for the otel
+// handler within the logger following github.com/remychantenay/slog-otel
+// it also enables otel mode at the same time.
+func WithOtelOpts(opts slogotel.OtelHandlerOpt) func(o *LoggerOpts) {
+	return func(o *LoggerOpts) {
+		WithOtel()(o) // As we are using otel opts, otel should be enabled
+		if o.otelOpts == nil {
+			o.otelOpts = make([]slogotel.OtelHandlerOpt, 0)
+		}
+		o.otelOpts = append(o.otelOpts, opts)
+	}
+}
+
 // NewLogger returns a new slog logger
 func NewLogger(loggerOpts *LoggerOpts, handlerOpts ...func(o *slog.HandlerOptions)) *slog.Logger {
 	hOpts := &slog.HandlerOptions{}
@@ -60,11 +85,16 @@ func NewLogger(loggerOpts *LoggerOpts, handlerOpts ...func(o *slog.HandlerOption
 	for _, opt := range handlerOpts {
 		opt(hOpts)
 	}
+	log := slogdedup.NewOverwriteHandler(slog.NewTextHandler(loggerOpts.destination, hOpts), nil)
 
 	if strings.ToLower(loggerOpts.mode) == ModeJSON {
-		return slog.New(slogdedup.NewOverwriteHandler(slog.NewJSONHandler(loggerOpts.destination, hOpts), nil))
+		log = slogdedup.NewOverwriteHandler(slog.NewJSONHandler(loggerOpts.destination, hOpts), nil)
 	}
-	return slog.New(slogdedup.NewOverwriteHandler(slog.NewTextHandler(loggerOpts.destination, hOpts), nil))
+
+	if loggerOpts.otelMode {
+		return slog.New(slogotel.New(log, loggerOpts.otelOpts...))
+	}
+	return slog.New(log)
 }
 
 func WithSource() func(o *slog.HandlerOptions) {
